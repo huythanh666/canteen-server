@@ -10,9 +10,9 @@ authRoute.post("/signup", validate(signupSchema), optionalAuth , authControler.s
 
 authRoute.post("/signin",validate(signinSchema) ,authControler.signin)
 
-authRoute.post("/signout", authControler.signout)
+authRoute.post("/signout", requireAuth , authControler.signout)
 
-authRoute.post("/refreshToken", authControler.refreshToken)
+authRoute.post("/refresh-token" ,authControler.refreshToken)
 
 
 export default authRoute
