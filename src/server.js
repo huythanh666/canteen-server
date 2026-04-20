@@ -5,7 +5,6 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser"
 import cors from "cors"
 import { generateAccessToken } from "./utils/jwt.util.js";
-import { checkAccessToken } from "./middlewares/auth.middleware.js";
 import corsOptions from "./configs/cors.config.js";
 import helmetConfig from "./configs/helmet.config.js";
 import uploadCloud from "./configs/cloudinary.config.js";
