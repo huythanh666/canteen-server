@@ -1,0 +1,7 @@
+export const ROLE_PERMISSIONS = {
+    null: ["STUDENT"],
+    SUPER_ADMIN: ['STUDENT', 'STAFF', 'ADMIN', 'SUPER_ADMIN'],
+    ADMIN: ['STUDENT', 'STAFF'],
+    STAFF: ['STUDENT'],
+    STUDENT:["STUDENT"]
+};

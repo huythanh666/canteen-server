@@ -16,7 +16,6 @@ const verifyAccessToken = (token) => {
 const verifyRefreshToken = (token) => {
   return jwt.verify(token, AUTH_CONFIG.REFRESH_SECRET);
 };
-
 const generateTokenJWT = (data) => { 
     const accessToken = generateAccessToken(data);
     const refreshToken = generateRefreshToken(data)

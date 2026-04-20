@@ -5,6 +5,7 @@ import { throwError } from "../../utils/response.util.js";
 import { generateTokenJWT } from "../../utils/jwt.util.js";
 import exclude from "../../utils/exclude.util.js";
 import { AUTH_ERRORS } from "../../constant/errorMessage.contstant.js";
+import { ROLE_PERMISSIONS } from "../../constant/auth.constant.js";
 
 const createAuthResponse = (user) => {
     const userWithoutPassword = exclude(user, ['password']);
@@ -21,8 +22,13 @@ const createAuthResponse = (user) => {
 
 const authService = {
 
-    signup: async (payload) => {
-        const {email, password, birthday, campus_id,canteen_id,name,role,email_parents} = payload;
+    signup: async (payload,access) => {
+        const {email, password, birthday, campus_id, canteen_id, name,role,email_parents} = payload;
+        const isAllowd = ROLE_PERMISSIONS[access]
+        if(!isAllowd.includes(role)){
+            throwError(AUTH_ERRORS.INVALID_ROLE);
+        }
+
         const isEmail = await prisma.user.findUnique({where:{email}})
         if(isEmail) {
             throwError(AUTH_ERRORS.EMAIL_ALREADY_EXISTS);
@@ -45,7 +51,6 @@ const authService = {
     },
 
     signin: async (payload) => { 
-        console.log(payload)
         const {email, password} = payload;
         const userData = await prisma.user.findUnique({where:{email}})
         if(!userData) {
@@ -56,7 +61,7 @@ const authService = {
             throwError(AUTH_ERRORS.INVALID_CREDENTIALS)
         }
         return createAuthResponse(userData);
-     } 
+    } 
 }
 
 export default authService
