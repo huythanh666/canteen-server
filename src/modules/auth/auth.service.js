@@ -28,7 +28,6 @@ const authService = {
         if(!isAllowd.includes(role)){
             throwError(AUTH_ERRORS.INVALID_ROLE);
         }
-
         const isEmail = await prisma.user.findUnique({where:{email}})
         if(isEmail) {
             throwError(AUTH_ERRORS.EMAIL_ALREADY_EXISTS);
