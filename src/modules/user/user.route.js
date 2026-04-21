@@ -1,8 +1,17 @@
 import express from "express";
+import userController from "./user.controller.js";
+import { requireAuth } from "../../middlewares/auth.middleware.js";
 
 const userRoute = express.Router();
 
-userRoute.get("/listUser")
+userRoute.use(requireAuth);
 
-userRoute.get("/userById")
+userRoute.get("/getListUser", userController.getListUser);
 
+userRoute.get("/getUserById/:id", userController.getUserById);
+
+userRoute.delete("/deleteUserById/:id", userController.deleteUserById);
+
+userRoute.put("/updateUserById/:id", userController.updateUserById);
+
+export default userRoute;

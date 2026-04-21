@@ -5,8 +5,11 @@ import { createCampusSchema } from "./campus.schema.js";
 
 const campusRoute = express.Router();
 
+campusRoute.post(
+  "/create",
+  validate(createCampusSchema),
+  campusController.createCampus,
+);
+campusRoute.get("/getAllCampus", campusController.getAllCampus);
 
-campusRoute.post("/create",validate(createCampusSchema),campusController.createCampus)
-campusRoute.get("/getAllCampus",campusController.getAllCampus)
-
-export default campusRoute
+export default campusRoute;
