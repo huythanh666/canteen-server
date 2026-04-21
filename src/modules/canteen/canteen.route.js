@@ -5,6 +5,10 @@ import { createCanteenSchema } from "./canteen.schema.js";
 
 const canteenRoute = express.Router();
 
-canteenRoute.post("/create",validate(createCanteenSchema) ,canteenController.createCanteen)
-canteenRoute.get("/getAllCanteen", canteenController.getAllCanteen)
+canteenRoute.post(
+  "/create",
+  validate(createCanteenSchema),
+  canteenController.createCanteen,
+);
+canteenRoute.get("/getAllCanteen", canteenController.getAllCanteen);
 export default canteenRoute;

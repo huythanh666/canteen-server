@@ -77,23 +77,23 @@ model wallet {
 }
 
 model product {
-  id                                                 String                  @id @default(uuid()) @db.VarChar(36)
-  product_name                                       String                  @db.VarChar(255)
-  category                                           product_category
-  price                                              Decimal?                @default(0.00) @db.Decimal(15, 2)
-  unit                                               String?                 @default("kg") @db.VarChar(20)
-  is_selling                                         Boolean?                @default(true)
-  protein                                            Decimal?                @default(0.00) @db.Decimal(10, 2)
-  fat                                                Decimal?                @default(0.00) @db.Decimal(10, 2)
-  calo                                               Decimal?                @default(0.00) @db.Decimal(10, 2)
-  is_available                                       Boolean?                @default(true)
-  is_subscription                                    Boolean?                @default(true)
-  inventory                                          inventory[]
-  inventory_transaction                              inventory_transaction[]
-  order_item                                         order_item[]
-  product_recipe_product_recipe_material_idToproduct product_recipe[]        @relation("product_recipe_material_idToproduct")
-  product_recipe_product_recipe_product_idToproduct  product_recipe[]        @relation("product_recipe_product_idToproduct")
-  product_review                                     product_review[]
+  id              String           @id @default(uuid()) @db.VarChar(36)
+  product_name    String           @db.VarChar(255)
+  category        product_category
+  price           Decimal          @default(0.00) @db.Decimal(15, 2)
+  unit            String           @default("kg") @db.VarChar(20)
+  is_selling      Boolean          @default(true)
+  is_available    Boolean          @default(true)
+  is_subscription Boolean          @default(true)
+  protein         Decimal          @default(0.00) @db.Decimal(10, 2)
+  fat             Decimal          @default(0.00) @db.Decimal(10, 2)
+  calo            Decimal          @default(0.00) @db.Decimal(10, 2)
+  inventories            inventory[]
+  inventory_transactions inventory_transaction[]
+  order_items            order_item[]
+  product_reviews        product_review[]
+  recipes                product_recipe[] @relation("product_recipe_product_idToproduct")
+  used_in_recipes        product_recipe[] @relation("product_recipe_material_idToproduct")
 }
 
 model product_recipe {
@@ -102,9 +102,8 @@ model product_recipe {
   material_id                                 String  @db.VarChar(36)
   quantity                                    Decimal @db.Decimal(15, 3)
   unit                                        String? @default("kg") @db.VarChar(20)
-  product_product_recipe_material_idToproduct product @relation("product_recipe_material_idToproduct", fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_material")
-  product_product_recipe_product_idToproduct  product @relation("product_recipe_product_idToproduct", fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_product")
-
+  material    product @relation("product_recipe_material_idToproduct", fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_material")
+  final_product product @relation("product_recipe_product_idToproduct", fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_product")
   @@index([material_id], map: "fk_recipe_material")
   @@index([product_id], map: "fk_recipe_product")
 }
