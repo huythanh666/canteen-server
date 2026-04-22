@@ -5,6 +5,7 @@ import canteenRoute from "./modules/canteen/canteen.route.js";
 import userRoute from "./modules/user/user.route.js";
 import productRoute from "./modules/product/product.route.js";
 import inventoryRoute from "./modules/inventory/inventory.route.js";
+import orderRoute from "./modules/order/order.route.js";
 
 const rootRoute = express.Router();
 rootRoute.use("/campus", campusRoute);
@@ -13,5 +14,6 @@ rootRoute.use("/user", userRoute);
 rootRoute.use("/auth", authRoute);
 rootRoute.use("/product", productRoute);
 rootRoute.use("/inventory", inventoryRoute);
+rootRoute.use("/order/", orderRoute);
 
 export default rootRoute;
