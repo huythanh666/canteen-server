@@ -8,7 +8,7 @@ const productController = {
     return sendSuccess(res, "Lấy danh sách thành công", data, 200);
   }),
 
-  getDetailProductById: asyncHandler(async (req, res) => {
+  getDetailProduct: asyncHandler(async (req, res) => {
     const data = await productService.getById(req.user, req.params.id);
     return sendSuccess(res, "Lấy chi tiết sản phẩm thành công", data, 200);
   }),
@@ -18,7 +18,7 @@ const productController = {
     return sendSuccess(res, "Tạo sản phẩm thành công", data, 200);
   }),
 
-  updateProductById: asyncHandler(async (req, res) => {
+  updateProduct: asyncHandler(async (req, res) => {
     const data = await productService.updateById(
       req.user,
       req.params.id,
@@ -27,7 +27,7 @@ const productController = {
     return sendSuccess(res, "Cập nhập sản phẩm thành công", data, 200);
   }),
 
-  deleteProductById: asyncHandler(async (req, res) => {
+  deleteProduct: asyncHandler(async (req, res) => {
     const data = await productService.deleteById(req.user, req.params.id);
     return sendSuccess(res, "Xoá sản phẩm thành công", data, 200);
   }),
