@@ -14,20 +14,17 @@ productRoute.use(requireAuth);
 productRoute.get("/getAllProduct", productController.getAllProduct);
 productRoute.get(
   "/getDetailProductById/:id",
-  productController.getDetailProductById,
+  productController.getDetailProduct,
 );
 
 productRoute.use(checkRolePermission);
 
 productRoute.put(
-  "/updateProductById/:id",
+  "/updateProduct/:id",
   validate(productSchema),
-  productController.updateProductById,
+  productController.updateProduct,
 );
-productRoute.delete(
-  "/deleteProductById/:id",
-  productController.deleteProductById,
-);
+productRoute.delete("/deleteProduct/:id", productController.deleteProduct);
 productRoute.post(
   "/createProduct",
   validate(productSchema),

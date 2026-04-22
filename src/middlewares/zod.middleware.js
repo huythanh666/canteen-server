@@ -10,7 +10,6 @@ export const validate = (schema) => (req, res, next) => {
     } else {
       error.statusCode = error.statusCode || 500;
     }
-
     next(error);
   }
 };

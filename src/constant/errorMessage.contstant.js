@@ -16,4 +16,10 @@ export const AUTH_ERRORS = {
   INVALID_ROLE: { message: "Bạn không đủ quyền hạn", statusCode: 403 },
   DETAIL_PRODUCT: { message: "Món này bán lẻ", statusCode: 403 },
   NO_DATA: { message: "Không tìm thấy sản phẩm này", statusCode: 400 },
+  FAKE_ACCOUNT: { message: "Hãy dùng account của mình", statusCode: 400 },
+  WRONG_TYPE: { message: "Sai phân loại", statusCode: 400 },
+  INVALID_VALUE: {
+    message: "Số lượng hàng trong kho không đủ để thực hiện xoá",
+    statusCode: 400,
+  },
 };
