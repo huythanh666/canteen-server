@@ -1,3 +1,5 @@
+import { INVALID } from "zod/v3";
+
 export const AUTH_ERRORS = {
   EMAIL_ALREADY_EXISTS: {
     message: "Email này đã được sử dụng.",
@@ -21,5 +23,61 @@ export const AUTH_ERRORS = {
   INVALID_VALUE: {
     message: "Số lượng hàng trong kho không đủ để thực hiện xoá",
     statusCode: 400,
+  },
+  INVALID_BALANCE: {
+    message: "Số dư trong ví không đủ",
+    statusbar: 400,
+  },
+  PRICE_MISMATCH: {
+    message: "Tổng tiền không khớp",
+    statusbar: 400,
+  },
+  OUT_OF_STOCK: {
+    message: "Hàng trong kho không đủ",
+    statusbar: 400,
+  },
+  WRONG_CANTEEN: {
+    message: "Đặt hàng sai canteen",
+    statusbar: 400,
+  },
+  WRONG_WALLET: {
+    message: "Không tìm thấy ví",
+    statusbar: 400,
+  },
+  INVALID_QUANTITY: {
+    message: "Số lượng không được nhỏ hơn hoặc bằng 0",
+    statusbar: 400,
+  },
+  INVALID_ORDER: {
+    message: "Không tìm thấy hoá đơn này",
+    statusbar: 400,
+  },
+  INVALID_STATUS_ORDER: {
+    message: "Không tìm thấy hoá đơn này",
+    statusbar: 400,
+  },
+  INVALID_VOUCHER: {
+    message: "Không tìm thấy mã giảm giá này",
+    statusbar: 400,
+  },
+  INVALID_MIN_ORDER_VALUE: {
+    message: "Mã giảm giá không áp dụng cho hoá đơn có giá trị thấp",
+    statusbar: 400,
+  },
+  VOUCHER_ALREADY_SAVED: {
+    message: "Bạn đã lưu mã này vào ví rồi",
+    statusbar: 400,
+  },
+  INVALID_STATUS_ORDER: {
+    message: "Trạng thái đơn không hợp lệ",
+    statusbar: 400,
+  },
+  INVALID_REVIEW: {
+    message: "Không tìm thấy review món này",
+    statusbar: 400,
+  },
+  REVIEW_ALREADY_EXISTS: {
+    message: "Bạn đã review món ăn này rồi",
+    statusbar: 400,
   },
 };

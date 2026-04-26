@@ -7,121 +7,127 @@ import { throwError } from "../../utils/response.util.js";
 const productService = {
   getAll: async (user) => {
     const { canteen_id } = user;
-    const data = await prisma.inventory.findMany({
-      where: {
-        canteen_id,
-        unit,
-        product: {
-          is_available: true,
-        },
-      },
+    const data = await prisma.product.findMany({
+      orderBy: { product_name: "asc" },
       include: {
-        product: true,
-      },
-    });
-    const listFood = data.map((e) => e.product);
-    return listFood;
-  },
-
-  getById: async (user, productId) => {
-    const { canteen_id } = user;
-    const isProduct = await prisma.product_recipe.findFirst({
-      where: { product_id: productId },
-    });
-    if (!isProduct) throwError(AUTH_ERRORS.DETAIL_PRODUCT);
-    const detail = await prisma.product_recipe.findMany({
-      where: {
-        product_id: productId,
-      },
-      include: {
-        material: {
+        product_reviews: {
           select: {
-            product_name: true,
-            fat: true,
-            calo: true,
-            protein: true,
-            inventory: { where: { canteen_id } },
+            rating: true,
           },
         },
       },
     });
-    const materials = detail.map((e) => {
+    return data.map((product) => {
+      const totalReviews = product.product_reviews.length;
+      const avgRating =
+        totalReviews > 0
+          ? product.product_reviews.reduce((sum, r) => sum + r.rating, 0) /
+            totalReviews
+          : 5;
+
       return {
-        material_name: e.material.product_name,
-        quantity: e.quantity,
-        unit: e.unit,
-        fat: e.material.fat,
-        calo: e.material.calo,
-        protein: e.material.protein,
+        ...product,
+        avgRating: Number(avgRating.toFixed(1)),
+        totalReviews,
+        product_reviews: undefined,
       };
     });
-    return materials;
+  },
+
+  getById: async (user, productId) => {
+    const { canteen_id } = user;
+    const data = await prisma.product_recipe.findMany({
+      where: { product_id: productId, inventory: { canteen_id } },
+      include: {
+        inventory: {
+          select: {
+            inventory_name: true,
+            unit: true,
+          },
+        },
+      },
+    });
+    const review = await prisma.product_review.findMany({
+      where: {
+        product_id: productId,
+      },
+      select: {
+        comment: true,
+        image: true,
+        rating: true,
+      },
+    });
+    const listMaterial = data.map(({ inventory, ...e }) => {
+      return {
+        ...e,
+        materials_name: inventory.inventory_name,
+      };
+    });
+    return { listMaterial, review };
   },
 
   create: async (user, data) => {
     const { canteen_id, role } = user;
-    const isAllowed = REQUIRED_ROLE_ADMIN.includes(role);
-    if (!isAllowed) throwError(AUTH_ERRORS.INVALID_ROLE);
-    const {
-      product_name,
-      category,
-      price,
-      unit,
-      protein,
-      fat,
-      calo,
-      is_subscription,
-    } = data;
-    const newProduct = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.create({
-        data: {
-          product_name,
-          category,
-          price: price || 0,
-          unit: unit || "kg",
-          protein: protein || 0,
-          fat: fat || 0,
-          calo: calo || 0,
-          is_subscription: is_subscription ?? true,
-          is_selling: true,
-          is_available: true,
-        },
-      });
-      await tx.inventory.create({
-        data: {
-          product_id: product.id,
-          canteen_id: canteen_id,
-          quantity: category == "MATERIAL" ? 0 : 1,
-          unit: product.unit,
-          min_stock: 0,
-        },
-      });
-      return product;
+    if (role !== "SUPER_ADMIN") throwError(AUTH_ERRORS.INVALID_ROLE);
+    const { product_name, category, price, unit, protein, fat, calo } = data;
+    const product = await prisma.product.create({
+      data: {
+        product_name,
+        category,
+        price,
+        unit,
+        protein,
+        fat,
+        calo,
+      },
     });
+    return product;
+  },
 
-    return newProduct;
+  createRecipe: async (user, data) => {
+    const { role, canteen_id } = user;
+    const { product_id, recipes } = data;
+    if (role !== "SUPER_ADMIN") throwError(AUTH_ERRORS.INVALID_ROLE);
+
+    return await prisma.$transaction(async (tx) => {
+      const recipeData = recipes.map((e) => ({
+        product_id,
+        material_id: e.material_id,
+        quantity: parseFloat(e.quantity),
+        unit: e.unit,
+      }));
+      const materialIds = recipeData.map((r) => r.material_id);
+      const existingMaterials = await tx.inventory.findMany({
+        where: {
+          id: { in: materialIds },
+        },
+        select: { id: true },
+      });
+      if (existingMaterials.length !== materialIds.length) {
+        throwError(AUTH_ERRORS.NO_DATA);
+      }
+      const result = await tx.product_recipe.createMany({
+        data: recipeData,
+      });
+      await tx.product.update({
+        where: { id: product_id },
+        data: { is_selling: true, is_available: true },
+      });
+      return result;
+    });
   },
 
   updateById: async (user, productId, data) => {
     const { role, canteen_id } = user;
-
-    const isAllowed = REQUIRED_ROLE_ADMIN.includes(role);
-    if (!isAllowed) throwError(AUTH_ERRORS.INVALID_ROLE);
-
-    const checkOwnership = await prisma.inventory.findFirst({
+    if (role !== "SUPER_ADMIN") throwError(AUTH_ERRORS.INVALID_ROLE);
+    const isProduct = await prisma.product.findFirst({
       where: {
-        product_id: productId,
-        canteen_id,
+        id: productId,
       },
     });
-
-    if (!checkOwnership && role !== "SUPER_ADMIN") {
-      throwError(AUTH_ERRORS.INVALID_ROLE);
-    }
-
+    if (!isProduct) throwError(AUTH_ERRORS.NO_DATA);
     const {
       product_name,
-      category,
       price,
       unit,
       protein,
@@ -131,61 +137,31 @@ const productService = {
       is_selling,
       is_available,
     } = data;
-
-    const updatedProduct = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.update({
-        where: { id: productId },
-        data: {
-          product_name,
-          category,
-          price,
-          unit,
-          protein,
-          fat,
-          calo,
-          is_subscription,
-          is_selling,
-          is_available,
-        },
-      });
-
-      await tx.inventory.updateMany({
-        where: {
-          product_id: productId,
-          canteen_id,
-        },
-        data: {
-          unit,
-        },
-      });
-
-      return product;
+    const product = await prisma.product.update({
+      where: { id: productId },
+      data: {
+        product_name,
+        price,
+        unit,
+        protein,
+        fat,
+        calo,
+        is_selling,
+        is_available,
+        is_subscription,
+      },
     });
-
-    return updatedProduct;
+    return product;
   },
 
   deleteById: async (user, productId) => {
     const { role, canteen_id } = user;
-
-    const isAllowed = REQUIRED_ROLE_ADMIN.includes(role);
-    if (!isAllowed) throwError(AUTH_ERRORS.INVALID_ROLE);
+    if (role !== "SUPER_ADMIN") throwError(AUTH_ERRORS.INVALID_ROLE);
 
     const product = await prisma.product.findUnique({
       where: { id: productId },
     });
     if (!product) throwError(AUTH_ERRORS.NO_DATA);
-
-    const checkOwnership = await prisma.inventory.findFirst({
-      where: {
-        product_id: productId,
-        canteen_id,
-      },
-    });
-
-    if (!checkOwnership && role !== "SUPER_ADMIN") {
-      throwError(AUTH_ERRORS.INVALID_ROLE);
-    }
 
     return await prisma.product.update({
       where: { id: productId },

@@ -1,0 +1,379 @@
+Ok, mình sẽ refactor lại theo hướng **senior-level: clean, scalable, dễ maintain, an toàn concurrency hơn**.
+
+## 🎯 Mục tiêu refactor
+
+* Tách nhỏ function (SRP)
+* Không trust client
+* Fix bug logic
+* Giảm race condition
+* Dễ test / maintain
+* Chuẩn production mindset
+
+---
+
+# ✅ Version refactor (đã clean)
+
+```js
+const orderService = {
+  createOrder: async (user, data) => {
+    const { canteen_id: userCanteenId, id: userId } = user;
+
+    const {
+      canteen_id,
+      user_sub_id,
+      voucher_id,
+      payment_method,
+      sub_total,
+      order_items,
+    } = data;
+
+    if (userCanteenId !== canteen_id) {
+      throwError(AUTH_ERRORS.WRONG_CANTEEN);
+    }
+
+    if (!order_items || order_items.length === 0) {
+      throwError(AUTH_ERRORS.INVALID_QUANTITY);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      // 1. Validate & calculate total
+      const {
+        productMap,
+        quantityMap,
+        serverTotal,
+      } = await validateAndCalculateTotal(tx, order_items);
+
+      validatePrice(sub_total, serverTotal);
+
+      // 2. Apply voucher
+      const discount = await applyVoucher(tx, {
+        voucher_id,
+        userId,
+        sub_total,
+      });
+
+      const finalPrice = Math.max(sub_total - discount, 0);
+
+      // 3. Create order
+      const order = await createOrder(tx, {
+        userId,
+        canteen_id,
+        user_sub_id,
+        voucher_id,
+        payment_method,
+        sub_total,
+        discount,
+        finalPrice,
+      });
+
+      // 4. Create order items
+      await createOrderItems(tx, order.id, order_items, productMap);
+
+      // 5. Deduct inventory
+      await deductInventory(tx, {
+        orderId: order.id,
+        productIds: Object.keys(quantityMap),
+        quantityMap,
+        canteen_id,
+      });
+
+      // 6. Payment
+      if (payment_method === PAYMENT_METHOD.WALLET) {
+        await processWalletPayment(tx, {
+          userId,
+          canteen_id,
+          amount: finalPrice,
+          orderId: order.id,
+        });
+      }
+
+      return { order_id: order.id };
+    });
+  },
+};
+```
+
+---
+
+# 🔧 Helper functions (tách nhỏ – key của senior)
+
+## 1. Validate + tính tiền
+
+```js
+async function validateAndCalculateTotal(tx, order_items) {
+  const productIds = order_items.map((i) => i.product_id);
+
+  const products = await tx.product.findMany({
+    where: { id: { in: productIds } },
+  });
+
+  if (products.length !== productIds.length) {
+    throwError(AUTH_ERRORS.NO_DATA);
+  }
+
+  const productMap = {};
+  products.forEach((p) => {
+    productMap[p.id] = Number(p.price);
+  });
+
+  let total = 0;
+  const quantityMap = {};
+
+  for (const item of order_items) {
+    if (item.quantity <= 0) {
+      throwError(AUTH_ERRORS.INVALID_QUANTITY);
+    }
+
+    const price = productMap[item.product_id];
+    if (!price) throwError(AUTH_ERRORS.NO_DATA);
+
+    quantityMap[item.product_id] = item.quantity;
+    total += price * item.quantity;
+  }
+
+  return { productMap, quantityMap, serverTotal: total };
+}
+```
+
+---
+
+## 2. Validate giá
+
+```js
+function validatePrice(clientTotal, serverTotal) {
+  if (Math.abs(clientTotal - serverTotal) > 0.001) {
+    throwError(AUTH_ERRORS.PRICE_MISMATCH);
+  }
+}
+```
+
+---
+
+## 3. Apply voucher (fix bug + race condition)
+
+```js
+async function applyVoucher(tx, { voucher_id, userId, sub_total }) {
+  if (!voucher_id) return 0;
+
+  const userVoucher = await tx.voucher_user.findFirst({
+    where: {
+      id: voucher_id,
+      user: userId,
+      status: "AVAILABLE",
+    },
+    include: { voucher: true },
+  });
+
+  if (!userVoucher || !userVoucher.voucher) {
+    throwError(AUTH_ERRORS.INVALID_VOUCHER);
+  }
+
+  const voucher = userVoucher.voucher;
+
+  if (!voucher.is_active || voucher.usage_limit <= 0) {
+    throwError(AUTH_ERRORS.INVALID_VOUCHER);
+  }
+
+  if (sub_total < voucher.min_order_value) {
+    throwError(AUTH_ERRORS.INVALID_MIN_ORDER_VALUE);
+  }
+
+  // SAFE decrement
+  const updated = await tx.voucher.updateMany({
+    where: {
+      id: voucher.id,
+      usage_limit: { gt: 0 },
+    },
+    data: {
+      usage_limit: { decrement: 1 },
+    },
+  });
+
+  if (updated.count === 0) {
+    throwError(AUTH_ERRORS.INVALID_VOUCHER);
+  }
+
+  let discount = 0;
+
+  if (voucher.discount_type === "PERCENT") {
+    discount = (sub_total * voucher.discount_value) / 100;
+    if (discount > voucher.max_discount) {
+      discount = voucher.max_discount;
+    }
+  } else {
+    discount = voucher.discount_value; // FIXED bug
+  }
+
+  await tx.voucher_user.update({
+    where: { id: userVoucher.id },
+    data: { status: "USED", used_at: new Date() },
+  });
+
+  return Math.min(discount, sub_total);
+}
+```
+
+---
+
+## 4. Create order
+
+```js
+async function createOrder(tx, payload) {
+  return tx.order.create({
+    data: {
+      user_id: payload.userId,
+      canteen_id: payload.canteen_id,
+      user_sub_id: payload.user_sub_id || null,
+      voucher_id: payload.voucher_id || null,
+      payment_method: payload.payment_method,
+      sub_total: payload.sub_total,
+      discount: payload.discount,
+      final_price: payload.finalPrice,
+      status: ORDER_STATUS.PENDING,
+    },
+  });
+}
+```
+
+---
+
+## 5. Order items
+
+```js
+async function createOrderItems(tx, orderId, items, productMap) {
+  const data = items.map((i) => ({
+    order_id: orderId,
+    product_id: i.product_id,
+    quantity: i.quantity,
+    price_at_purchase: productMap[i.product_id],
+    total_item_price: productMap[i.product_id] * i.quantity,
+  }));
+
+  await tx.order_item.createMany({ data });
+}
+```
+
+---
+
+## 6. Inventory (clean + readable)
+
+```js
+async function deductInventory(tx, { orderId, productIds, quantityMap, canteen_id }) {
+  const recipes = await tx.product_recipe.findMany({
+    where: {
+      product_id: { in: productIds },
+      inventory: { canteen_id },
+    },
+  });
+
+  for (const r of recipes) {
+    const needed = quantityMap[r.product_id] * r.quantity;
+
+    const updated = await tx.inventory.updateMany({
+      where: {
+        id: r.material_id,
+        quantity: { gte: needed },
+      },
+      data: {
+        quantity: { decrement: needed },
+      },
+    });
+
+    if (updated.count === 0) {
+      throwError(AUTH_ERRORS.OUT_OF_STOCK);
+    }
+
+    await tx.inventory_transaction.create({
+      data: {
+        inventory_id: r.material_id,
+        order_id: orderId,
+        type: INVENTORY_TYPE.EXPORT,
+        quantity: needed,
+        description: `Xuất hàng cho hoá đơn ${orderId}`,
+      },
+    });
+  }
+}
+```
+
+---
+
+## 7. Wallet (an toàn hơn)
+
+```js
+async function processWalletPayment(tx, { userId, canteen_id, amount, orderId }) {
+  const walletUser = await tx.user.findFirst({
+    where: { id: userId, canteen_id },
+    include: { wallet: true },
+  });
+
+  if (!walletUser?.wallet) {
+    throwError(AUTH_ERRORS.WRONG_WALLET);
+  }
+
+  const updated = await tx.wallet.updateMany({
+    where: {
+      id: walletUser.wallet.id,
+      balance: { gte: amount },
+    },
+    data: {
+      balance: { decrement: amount },
+    },
+  });
+
+  if (updated.count === 0) {
+    throwError(AUTH_ERRORS.INVALID_BALANCE);
+  }
+
+  await tx.wallet_transaction.create({
+    data: {
+      wallet_id: walletUser.wallet.id,
+      order_id: orderId,
+      amount,
+      type: WALLET_TYPE.PAYMENT,
+      description: `Thanh toán hoá đơn ${orderId}`,
+    },
+  });
+}
+```
+
+---
+
+# 🧠 Sau refactor bạn đạt gì?
+
+## 🔥 Trước vs Sau
+
+| Tiêu chí        | Trước       | Sau                  |
+| --------------- | ----------- | -------------------- |
+| Độ dài function | 150 dòng 😵 | ~30 dòng             |
+| Maintain        | ❌ Khó       | ✅ Dễ                 |
+| Bug risk        | ⚠️ Cao      | ✅ Giảm mạnh          |
+| Test            | ❌ Khó       | ✅ Test từng function |
+| Scale           | ⚠️          | ✅ tốt hơn            |
+
+---
+
+# 📊 Level sau refactor
+
+👉 Nếu bạn **tự viết được version này**:
+
+**=> 8.0 – 8.5 (Senior backend)**
+
+---
+
+# 🚀 Nếu muốn lên level cao hơn nữa
+
+Tiếp theo nên học:
+
+* Idempotency key (Stripe style)
+* Event-driven (Kafka / queue)
+* Inventory locking chuẩn DB
+* CQRS (tách read/write)
+
+---
+
+Nếu bạn muốn, mình có thể:
+👉 Convert flow này thành **system design (Shopee / Grab interview)**
+👉 Hoặc simulate **1000 concurrent orders test case**
+
+Chỉ cần nói 😄

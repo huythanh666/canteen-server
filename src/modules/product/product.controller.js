@@ -17,6 +17,10 @@ const productController = {
     const data = await productService.create(req.user, req.body);
     return sendSuccess(res, "Tạo sản phẩm thành công", data, 200);
   }),
+  createProductRecipe: asyncHandler(async (req, res) => {
+    const data = await productService.createRecipe(req.user, req.body);
+    return sendSuccess(res, "Tạo sản phẩm thành công", data, 200);
+  }),
 
   updateProduct: asyncHandler(async (req, res) => {
     const data = await productService.updateById(

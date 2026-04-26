@@ -1,4 +1,7 @@
-import { REQUIRED_ROLE_ADMIN } from "../constant/auth.constant.js";
+import {
+  BUSSINESS_PERMISSION,
+  REQUIRED_ROLE_ADMIN,
+} from "../constant/auth.constant.js";
 import { verifyAccessToken } from "../utils/jwt.util.js";
 import { sendError } from "../utils/response.util.js";
 
@@ -44,6 +47,35 @@ export const checkRolePermission = (req, res, next) => {
   }
   const isAllowed = REQUIRED_ROLE_ADMIN.includes(req.user.role);
   if (!isAllowed) {
+    return sendError(
+      res,
+      "Bạn không đủ quyền hạn để thực hiện hành động này!",
+      403,
+    );
+  }
+  next();
+};
+
+export const checkBussinessPermission = (req, res, next) => {
+  if (!req.user) {
+    return sendError(res, "Hệ thống không xác định được người dùng", 500);
+  }
+  const isAllowed = BUSSINESS_PERMISSION.includes(req.user.role);
+  if (!isAllowed) {
+    return sendError(
+      res,
+      "Bạn không đủ quyền hạn để thực hiện hành động này!",
+      403,
+    );
+  }
+  next();
+};
+
+export const superAdminPermission = (req, res, next) => {
+  if (!req.user) {
+    return sendError(res, "Hệ thống không xác định được người dùng", 500);
+  }
+  if (req.user.role !== "SUPER_ADMIN") {
     return sendError(
       res,
       "Bạn không đủ quyền hạn để thực hiện hành động này!",

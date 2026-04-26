@@ -21,7 +21,7 @@ const createAuthResponse = (user) => {
 };
 
 const authService = {
-  signup: async (payload, access) => {
+  signup: async (payload, currentUser) => {
     const {
       email,
       password,
@@ -32,26 +32,39 @@ const authService = {
       role,
       email_parents,
     } = payload;
-    const isAllowed = SIGNUP_PERMISSIONS[access];
+
+    const isAllowed = SIGNUP_PERMISSIONS[currentUser.role];
     if (!isAllowed.includes(role)) throwError(AUTH_ERRORS.INVALID_ROLE);
+    if (currentUser.role !== "SUPER_ADMIN") {
+      if (canteen_id !== currentUser.canteen_id) {
+        throwError(AUTH_ERRORS.INVALID_ROLE);
+      }
+    }
     const isEmail = await prisma.user.findUnique({ where: { email } });
     if (isEmail) {
       throwError(AUTH_ERRORS.EMAIL_ALREADY_EXISTS);
     }
     const hash = await hashPassword(password);
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        birthday: new Date(birthday),
-        password: hash,
-        campus_id,
-        canteen_id,
-        role,
-        email_parents,
-      },
+    const newUser = await prisma.$transaction(async (tx) => {
+      const createNewUser = await tx.user.create({
+        data: {
+          email,
+          name,
+          birthday: new Date(birthday),
+          password: hash,
+          campus_id,
+          canteen_id,
+          role,
+          email_parents,
+        },
+      });
+      await tx.wallet.create({
+        data: { user_id: createNewUser.id, balance: 0 },
+      });
+      return createNewUser;
     });
-    return createAuthResponse(user);
+
+    return createAuthResponse(newUser);
   },
 
   signin: async (payload) => {
