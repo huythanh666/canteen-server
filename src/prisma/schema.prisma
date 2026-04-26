@@ -82,45 +82,47 @@ model product {
   category        product_category
   price           Decimal          @default(0.00) @db.Decimal(15, 2)
   unit            String           @default("kg") @db.VarChar(20)
-  is_selling      Boolean          @default(true)
-  is_available    Boolean          @default(true)
-  is_subscription Boolean          @default(true)
+  is_selling      Boolean          @default(false)
+  is_available    Boolean          @default(false)
+  is_subscription Boolean          @default(false)
   protein         Decimal          @default(0.00) @db.Decimal(10, 2)
   fat             Decimal          @default(0.00) @db.Decimal(10, 2)
   calo            Decimal          @default(0.00) @db.Decimal(10, 2)
-  inventories            inventory[]
-  inventory_transactions inventory_transaction[]
+  image           String           @db.VarChar(255)
+  recipes         product_recipe[] @relation("ProductToRecipe")
+
   order_items            order_item[]
   product_reviews        product_review[]
-  recipes                product_recipe[] @relation("product_recipe_product_idToproduct")
-  used_in_recipes        product_recipe[] @relation("product_recipe_material_idToproduct")
 }
 
 model product_recipe {
-  id                                          String  @id @default(uuid()) @db.VarChar(36)
-  product_id                                  String  @db.VarChar(36)
-  material_id                                 String  @db.VarChar(36)
-  quantity                                    Decimal @db.Decimal(15, 3)
-  unit                                        String? @default("kg") @db.VarChar(20)
-  material    product @relation("product_recipe_material_idToproduct", fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_material")
-  final_product product @relation("product_recipe_product_idToproduct", fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_product")
-  @@index([material_id], map: "fk_recipe_material")
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  product_id   String   @db.VarChar(36)
+  material_id  String   @db.VarChar(36) // Đây là ID của bản ghi trong Inventory
+  quantity     Decimal  @db.Decimal(15, 3)
+  unit         String?  @default("kg") @db.VarChar(20)
+  created_at   DateTime @default(now()) @db.Timestamp(0)
+  product      product   @relation("ProductToRecipe", fields: [product_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_recipe_product")
+  inventory    inventory @relation(fields: [material_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_recipe_inventory")
+
   @@index([product_id], map: "fk_recipe_product")
+  @@index([material_id], map: "fk_recipe_inventory")
 }
 
 model inventory {
-  id                    String                  @id @default(uuid()) @db.VarChar(36)
-  product_id            String?                 @db.VarChar(36)
-  canteen_id            String?                 @db.VarChar(36)
-  quantity              Decimal?                @default(0.000) @db.Decimal(15, 3)
-  unit                  String?                 @default("kg") @db.VarChar(20)
-  min_stock             Decimal?                @default(0.000) @db.Decimal(15, 3)
-  canteen               canteen?                @relation(fields: [canteen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventory_canteen")
-  product               product?                @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_inventory_product")
-  inventory_transaction inventory_transaction[]
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  inventory_name String    @db.VarChar(255) 
+  canteen_id     String    @db.VarChar(36)
+  quantity       Decimal   @default(0.000) @db.Decimal(15, 3)
+  unit           String    @default("kg") @db.VarChar(20)
+  min_stock      Decimal   @default(0.000) @db.Decimal(15, 3)
+  cost_price     Decimal   @default(0) @db.Decimal(12, 2)
+  
+  product_recipes       product_recipe[]
+  inventory_transactions inventory_transaction[] 
 
-  @@index([canteen_id], map: "fk_inventory_canteen")
-  @@index([product_id], map: "fk_inventory_product")
+  canteen        canteen   @relation(fields: [canteen_id], references: [id])
+  @@index([canteen_id])
 }
 
 model order {
@@ -131,10 +133,13 @@ model order {
   staff_id                  String?                 @db.VarChar(36)
   voucher_id                String?                 @db.VarChar(36)
   payment_method            order_payment_method?   @default(WALLET)
-  total_price               Decimal                 @db.Decimal(15, 2)
+  sub_total                 Decimal                 @db.Decimal(15, 2)
   discount                  Decimal?                @default(0.00) @db.Decimal(15, 2)
   status                    order_status?           @default(PENDING)
   created_at                DateTime?               @default(now()) @db.Timestamp(0)
+  final_price               Decimal                 @db.Decimal(15, 2)
+  description               String?                 @db.VarChar(255)
+  
   inventory_transaction     inventory_transaction[]
   canteen                   canteen                 @relation(fields: [canteen_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_canteen")
   user_order_staff_idTouser user?                   @relation("order_staff_idTouser", fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_order_staff")
@@ -156,8 +161,9 @@ model order_item {
   id                String  @id @default(uuid()) @db.VarChar(36)
   order_id          String  @db.VarChar(36)
   product_id        String  @db.VarChar(36)
-  quantity          Decimal @db.Decimal(15, 3)
+  quantity          Int     
   price_at_purchase Decimal @db.Decimal(15, 2)
+  total_item_price  Decimal @db.Decimal(15, 2)
   order             order   @relation(fields: [order_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_item_order")
   product           product @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_item_product")
 
@@ -167,25 +173,21 @@ model order_item {
 
 model inventory_transaction {
   id           String                     @id @default(uuid()) @db.VarChar(36)
-  inventory_id String?                    @db.VarChar(36)
-  product_id   String?                    @db.VarChar(36)
-  staff_id     String?                    @db.VarChar(36)
+  inventory_id String                     @db.VarChar(36)
   order_id     String?                    @db.VarChar(36)
+  staff_id     String?                    @db.VarChar(36)
+  type         inventory_transaction_type // Trỏ đúng về Enum bên dưới
   quantity     Decimal                    @db.Decimal(15, 3)
-  unit         String?                    @default("kg") @db.VarChar(20)
-  type         inventory_transaction_type
-  cost_price   Decimal?                   @default(0.00) @db.Decimal(15, 2)
+  created_at   DateTime                   @default(now())
   description  String?                    @db.Text
-  created_at   DateTime?                  @default(now()) @db.Timestamp(0)
-  inventory    inventory?                 @relation(fields: [inventory_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_itrans_inv")
-  order        order?                     @relation(fields: [order_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_itrans_order")
-  product      product?                   @relation(fields: [product_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_itrans_prod")
-  user         user?                      @relation(fields: [staff_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_itrans_staff")
 
-  @@index([inventory_id], map: "fk_itrans_inv")
-  @@index([order_id], map: "fk_itrans_order")
-  @@index([product_id], map: "fk_itrans_prod")
-  @@index([staff_id], map: "fk_itrans_staff")
+  inventory inventory @relation(fields: [inventory_id], references: [id])
+  order     order?    @relation(fields: [order_id], references: [id])
+  staff     user?     @relation(fields: [staff_id], references: [id])
+
+  @@index([inventory_id])
+  @@index([order_id])
+  @@index([staff_id])
 }
 
 model wallet_transaction {

@@ -30,5 +30,9 @@ productRoute.post(
   validate(productSchema),
   productController.createProduct,
 );
+productRoute.post(
+  "/createProductRecipe",
+  productController.createProductRecipe,
+);
 
 export default productRoute;

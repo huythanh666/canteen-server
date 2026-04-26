@@ -12,7 +12,7 @@ const authRoute = express.Router();
 authRoute.post(
   "/signup",
   validate(signupSchema),
-  optionalAuth,
+  requireAuth,
   authControler.signup,
 );
 

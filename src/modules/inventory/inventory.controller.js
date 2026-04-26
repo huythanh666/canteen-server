@@ -4,18 +4,25 @@ import inventoryService from "./inventory.service.js";
 
 const inventoryController = {
   getAllInventory: asyncHandler(async (req, res) => {
-    const data = await inventoryService.getAllInventory(req.user);
+    const data = await inventoryService.getAllInventory(req.user, req?.query);
     return sendSuccess(res, "Lấy danh sách kho hàng thành công", data, 200);
   }),
   getAllTransaction: asyncHandler(async (req, res) => {
-    const data = await inventoryService.getAll(req.user);
+    const data = await inventoryService.getAllTransaction(req.user);
     return sendSuccess(res, "Lấy danh sách giao dịch thành công", data, 200);
   }),
-  createTransaction: asyncHandler(async (req, res) => {
-    const data = await inventoryService.create(req.user, req.body);
+  createInventory: asyncHandler(async (req, res) => {
+    const data = await inventoryService.createInventory(req.user, req.body);
     return sendSuccess(res, "Tạo giao dịch thành công", data, 200);
   }),
-  getDetailProduct: asyncHandler(async (req, res) => {
+  createTransaction: asyncHandler(async (req, res) => {
+    const data = await inventoryService.createTransactionInventory(
+      req.user,
+      req.body,
+    );
+    return sendSuccess(res, "Tạo giao dịch thành công", data, 200);
+  }),
+  getDetailInventory: asyncHandler(async (req, res) => {
     const data = await inventoryService.getDetail(req.user, req.params.id);
     return sendSuccess(res, "Lấy danh sách thành công", data, 200);
   }),

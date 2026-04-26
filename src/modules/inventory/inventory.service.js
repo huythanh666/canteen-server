@@ -4,164 +4,197 @@ import prisma from "../../prisma/client.js";
 import { throwError } from "../../utils/response.util.js";
 
 const inventoryService = {
-  getAllInventory: async (user) => {
-    const { canteen_id } = user;
-    const data = await prisma.inventory.findMany({
-      where: {
-        canteen_id,
-      },
+  getAllInventory: async (user, query) => {
+    const { canteen_id: userCanteenId, role } = user;
+    const { canteenId: targetCanteenId } = query;
+    const where = {};
+    if (role === "SUPER_ADMIN") {
+      if (targetCanteenId) {
+        where.canteen_id = targetCanteenId;
+      }
+    } else {
+      where.canteen_id = userCanteenId;
+    }
+    const inventoryList = await prisma.inventory.findMany({
+      where,
       include: {
-        product: {
+        canteen: {
           select: {
-            product_name: true,
+            name: true,
           },
         },
       },
-    });
-    const list = data.map(({ product, ...e }) => {
-      return {
-        ...e,
-        product_name: product.product_name,
-      };
-    });
-    return list;
-  },
-  getAll: async (user) => {
-    const { canteen_id } = user;
-    const data = await prisma.inventory_transaction.findMany({
-      where: {
-        inventory: {
-          canteen_id,
-        },
-      },
-      include: {
-        product: true,
-        user: true,
+      orderBy: {
+        canteen_id: "asc",
       },
     });
-    const list = data.map(({ product, user, ...e }) => {
+    const data = inventoryList.map(({ canteen, ...e }) => {
       return {
         ...e,
-        product_name: product.product_name,
-        username: user.name,
+        canteen_name: canteen.name,
       };
     });
-    return list;
-  },
-  create: async (user, data) => {
-    const { canteen_id, role, id } = user;
-    const {
-      inventory_id,
-      product_id,
-      staff_id,
-      quantity,
-      unit,
-      type,
-      cost_price,
-      description,
-      created_at,
-    } = data;
 
-    if (staff_id !== id) throwError(AUTH_ERRORS.FAKE_ACCOUNT);
+    return data;
+  },
+  getAllTransaction: async (user) => {
+    const { canteen_id } = user;
+    const listInventoryTransaction =
+      await prisma.inventory_transaction.findMany({
+        where: {
+          inventory: {
+            canteen_id,
+          },
+        },
+        include: {
+          inventory: {
+            select: { inventory_name: true, unit: true, canteen: true },
+          },
+          staff: { select: { name: true } },
+          order: { select: { id: true } },
+        },
+        orderBy: {
+          created_at: "desc",
+        },
+      });
+    const data = listInventoryTransaction.map(({ inventory, staff, ...e }) => {
+      return {
+        ...e,
+        inventory_name: inventory.inventory_name,
+        canteen_name: inventory.canteen.name,
+        staff_name: staff.name,
+      };
+    });
+    return data;
+  },
+  createInventory: async (user, data) => {
+    const { canteen_id: staffCanteenId, role, id } = user;
+    const { inventory_name, canteen_id, quantity, min_stock, cost_price } =
+      data;
+
     const isAllowed = REQUIRED_ROLE_ADMIN.includes(role);
     if (!isAllowed) throwError(AUTH_ERRORS.INVALID_ROLE);
 
-    const currentInventory = await prisma.inventory.findUnique({
-      where: { id: inventory_id, canteen_id, unit: "kg" },
+    if (staffCanteenId !== canteen_id) throwError(AUTH_ERRORS.INVALID_ROLE);
+
+    return await prisma.inventory.create({
+      data: { inventory_name, canteen_id, quantity, min_stock, cost_price },
+    });
+  },
+  createTransactionInventory: async (user, data) => {
+    const { canteen_id, role, id } = user;
+    const { inventory_id, order_id, staff_id, type, quantity, description } =
+      data;
+    if (type !== "EXPORT") {
+      data.order_id = null;
+    }
+    if (staff_id !== id) throwError(AUTH_ERRORS.FAKE_ACCOUNT);
+    const isAllowed = REQUIRED_ROLE_ADMIN.includes(role);
+    if (!isAllowed) throwError(AUTH_ERRORS.INVALID_ROLE);
+    const whereCondition = { id: inventory_id };
+    if (role !== "SUPER_ADMIN") {
+      whereCondition.canteen_id = canteen_id;
+    }
+    const currentInventory = await prisma.inventory.findFirst({
+      where: whereCondition,
     });
 
     if (!currentInventory) throwError(AUTH_ERRORS.NO_DATA);
     let changeAmount = 0;
+    const currentQty = Number(currentInventory.quantity);
 
-    if (type === "IMPORT") {
-      changeAmount = quantity;
-    } else if (type === "WASTE" || type === "EXPORT") {
-      if (Number(currentInventory.quantity) < quantity) {
+    switch (type) {
+      case "IMPORT":
+        changeAmount = quantity;
+        break;
+      case "WASTE":
+      case "EXPORT":
+        if (currentQty < quantity) throwError(AUTH_ERRORS.INVALID_VALUE);
+        changeAmount = -quantity;
+        break;
+      case "ADJUST":
+        changeAmount = quantity;
+        if (currentQty + changeAmount < 0)
+          throwError(AUTH_ERRORS.INVALID_VALUE);
+        break;
+      default:
         throwError(AUTH_ERRORS.INVALID_VALUE);
-      }
-      changeAmount = -quantity;
-    } else if (type === "ADJUST") {
-      changeAmount = quantity;
-
-      if (Number(currentInventory.quantity) + changeAmount < 0) {
-        throwError(AUTH_ERRORS.INVALID_VALUE);
-      }
     }
 
-    const newTransaction = await prisma.$transaction(async (tx) => {
-      const transaction = await tx.inventory_transaction.create({
+    return await prisma.$transaction(async (tx) => {
+      const transactionRecord = await tx.inventory_transaction.create({
         data: {
           inventory_id,
-          product_id,
+          order_id,
           staff_id,
-          quantity,
-          unit,
           type,
-          cost_price,
+          quantity,
           description,
-          created_at,
         },
       });
-
       await tx.inventory.update({
         where: { id: inventory_id },
         data: {
           quantity: { increment: changeAmount },
         },
       });
-      return transaction;
-    });
 
-    return newTransaction;
+      return transactionRecord;
+    });
   },
-  getDetail: async (user, productId) => {
-    const { canteen_id, id, role } = user;
-    const isAllowed = REQUIRED_ROLE_ADMIN.includes(role);
-    if (!isAllowed) throwError(AUTH_ERRORS.INVALID_ROLE);
+  getDetail: async (user, inventoryId) => {
+    const { role } = user;
+    if (!REQUIRED_ROLE_ADMIN.includes(role))
+      throwError(AUTH_ERRORS.INVALID_ROLE);
     const data = await prisma.inventory_transaction.findMany({
-      where: { product_id: productId, inventory: { canteen_id } },
+      where: { inventory_id: inventoryId },
       include: {
-        product: {
+        inventory: {
           select: {
-            product_name: true,
+            inventory_name: true,
+            unit: true,
+            canteen: { select: { name: true } },
           },
         },
-        user: {
-          select: {
-            name: true,
-          },
-        },
+        staff: { select: { name: true } },
       },
-    });
-    const list = data.map(({ product, user, ...e }) => {
-      return {
-        ...e,
-        product_name: product.product_name,
-        name: user.name,
-      };
+      orderBy: { created_at: "desc" },
     });
 
-    return list;
+    return data.map(({ inventory, staff, ...e }) => ({
+      ...e,
+      inventory_name: inventory.inventory_name,
+      unit: inventory.unit,
+      canteen_name: inventory.canteen.name,
+      staff_name: staff?.name || "Hệ thống",
+    }));
   },
   getDailyReport: async (user, query) => {
     const { canteen_id, role } = user;
-    const isAllowed = REQUIRED_ROLE_ADMIN.includes(role);
-    if (!isAllowed) throwError(AUTH_ERRORS.INVALID_ROLE);
+    if (!REQUIRED_ROLE_ADMIN.includes(role))
+      throwError(AUTH_ERRORS.INVALID_ROLE);
 
     const { start_date, end_date } = query;
     const start = start_date ? new Date(start_date) : new Date("2026-04-01");
     const end = end_date ? new Date(end_date) : new Date();
+
+    const whereCondition = {
+      created_at: { gte: start, lte: end },
+    };
+
+    if (role !== "SUPER_ADMIN") {
+      whereCondition.inventory = {
+        canteen_id: canteen_id,
+      };
+    }
+
     const report = await prisma.inventory_transaction.groupBy({
       by: ["type"],
-      where: {
-        inventory: { canteen_id },
-        created_at: {
-          gte: start,
-          lte: end,
-        },
-      },
+      where: whereCondition,
       _sum: { quantity: true },
+      _count: { id: true },
     });
+
     return report;
   },
 };

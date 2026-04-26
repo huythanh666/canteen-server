@@ -13,14 +13,16 @@ inventoryRoute.get("/getAllInventory", inventoryController.getAllInventory);
 inventoryRoute.get("/getAllTransaction", inventoryController.getAllTransaction);
 
 inventoryRoute.use(checkRolePermission);
+
+inventoryRoute.post("/createInventory", inventoryController.createInventory);
 inventoryRoute.post(
   "/createTransaction",
   validate(inventoryTransactionSchema),
   inventoryController.createTransaction,
 );
 inventoryRoute.get(
-  "/getDetailProduct/:id",
-  inventoryController.getDetailProduct,
+  "/getDetailInventory/:id",
+  inventoryController.getDetailInventory,
 );
 
 inventoryRoute.get("/report", inventoryController.getDailyReport);

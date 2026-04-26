@@ -13,10 +13,9 @@ import authService from "./auth.service.js";
 
 const authControler = {
   signup: asyncHandler(async (req, res) => {
-    const { role } = req?.user || { role: "STUDENT" };
     const { user, accessToken, refreshToken } = await authService.signup(
       req.body,
-      role,
+      req.user,
     );
     setRefreshTokenCookie(res, refreshToken);
     const data = { user, accessToken };
