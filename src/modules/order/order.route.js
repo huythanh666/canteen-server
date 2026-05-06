@@ -10,7 +10,8 @@ const orderRoute = express.Router();
 
 orderRoute.use(requireAuth);
 orderRoute.post("/createOrder", orderController.createOrder);
-orderRoute.get("/history", orderController.getHistory);
+orderRoute.get("/my-history", orderController.getMyHistory);
+orderRoute.get("/historyOrder", orderController.getHistoryOrder);
 orderRoute.get("/getOrderDetail/:id", orderController.getOrderDetail);
 orderRoute.use(checkBussinessPermission);
 orderRoute.get("/getAllOrder", orderController.getAllOrder);

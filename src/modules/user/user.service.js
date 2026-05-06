@@ -11,19 +11,28 @@ import { throwError } from "../../utils/response.util.js";
 const userService = {
   getList: async ({ role, canteen_id }) => {
     const isAllowed = GETLIST_PERMISSONS[role];
-    if (!isAllowed.includes(role)) throwError(AUTH_ERRORS.INVALID_ROLE);
+    if (!isAllowed.includes(role)) {
+      throwError(AUTH_ERRORS.INVALID_ROLE);
+    }
     const whereCondition = {
-      role: {
-        in: isAllowed,
-      },
-      status: "ACTIVE",
+      role: { in: isAllowed },
     };
     if (role !== "SUPER_ADMIN") {
       whereCondition.canteen_id = canteen_id;
+      whereCondition.status = "ACTIVE";
     }
-    return await prisma.user.findMany({
+    const userList = await prisma.user.findMany({
       where: whereCondition,
+      include: {
+        canteen: {
+          select: { name: true },
+        },
+      },
     });
+
+    return userList.map(
+      ({ password, ...userWithoutPassword }) => userWithoutPassword,
+    );
   },
 
   getUser: async (paramsId, { role, canteen_id, id }) => {

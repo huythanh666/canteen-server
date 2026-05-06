@@ -66,21 +66,29 @@ const productService = {
     return { listMaterial, review };
   },
 
-  create: async (user, data) => {
-    const { canteen_id, role } = user;
+  create: async (user, data, file) => {
+    const { role } = user;
     if (role !== "SUPER_ADMIN") throwError(AUTH_ERRORS.INVALID_ROLE);
-    const { product_name, category, price, unit, protein, fat, calo } = data;
+    if (!data) throwError({ message: "Dữ liệu sản phẩm không hợp lệ" });
+    const imageUrl = file ? file.path : null;
+    const productData = {
+      product_name: data.product_name,
+      category: data.category,
+      unit: data.unit,
+      price: Number(data.price || 0),
+      protein: Number(data.protein || 0),
+      fat: Number(data.fat || 0),
+      calo: Number(data.calo || 0),
+      image: imageUrl,
+      is_subscription: false,
+      is_selling: true,
+      is_available: true,
+    };
+
     const product = await prisma.product.create({
-      data: {
-        product_name,
-        category,
-        price,
-        unit,
-        protein,
-        fat,
-        calo,
-      },
+      data: productData,
     });
+
     return product;
   },
 
@@ -109,15 +117,12 @@ const productService = {
       const result = await tx.product_recipe.createMany({
         data: recipeData,
       });
-      await tx.product.update({
-        where: { id: product_id },
-        data: { is_selling: true, is_available: true },
-      });
+
       return result;
     });
   },
 
-  updateById: async (user, productId, data) => {
+  updateById: async (user, productId) => {
     const { role, canteen_id } = user;
     if (role !== "SUPER_ADMIN") throwError(AUTH_ERRORS.INVALID_ROLE);
     const isProduct = await prisma.product.findFirst({
@@ -126,29 +131,17 @@ const productService = {
       },
     });
     if (!isProduct) throwError(AUTH_ERRORS.NO_DATA);
-    const {
-      product_name,
-      price,
-      unit,
-      protein,
-      fat,
-      calo,
-      is_subscription,
-      is_selling,
-      is_available,
-    } = data;
+    const isRecipe = await prisma.product_recipe.findMany({
+      where: { product_id: productId },
+    });
+    if (isRecipe.length === 0) throwError(AUTH_ERRORS.INVALID_RECIPE);
     const product = await prisma.product.update({
-      where: { id: productId },
+      where: {
+        id: productId,
+      },
       data: {
-        product_name,
-        price,
-        unit,
-        protein,
-        fat,
-        calo,
-        is_selling,
-        is_available,
-        is_subscription,
+        is_available: true,
+        is_selling: true,
       },
     });
     return product;

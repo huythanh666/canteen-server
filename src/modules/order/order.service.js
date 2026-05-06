@@ -50,21 +50,25 @@ const orderService = {
 
       if (voucher_id) {
         const userVoucher = await tx.voucher_user.findFirst({
-          where: { id: voucher_id, user: id, status: "AVAILABLE" },
+          where: {
+            voucher_id: voucher_id,
+            user_id: user_id,
+            status: "AVAILABLE",
+          },
           include: {
             voucher: true,
           },
         });
-
         if (
           !userVoucher ||
           !userVoucher.voucher ||
-          userVoucher.voucher.is_active === 0
-        )
+          !userVoucher.voucher.is_active
+        ) {
           throwError(AUTH_ERRORS.INVALID_VOUCHER);
+        }
         const voucherInfo = userVoucher.voucher;
 
-        await tx.voucher.updateMany({
+        const updated = await tx.voucher.updateMany({
           where: {
             id: userVoucher.voucher_id,
             usage_limit: { gt: 0 },
@@ -73,12 +77,13 @@ const orderService = {
             usage_limit: { decrement: 1 },
           },
         });
-        if (voucherInfo.usage_limit <= 0)
+        if (updated.count === 0) {
           await tx.voucher.update({
             where: { id: userVoucher.voucher_id },
             data: { is_active: 0 },
           });
-        throwError(AUTH_ERRORS.INVALID_VOUCHER);
+          throwError(AUTH_ERRORS.INVALID_VOUCHER);
+        }
 
         if (sub_total < voucherInfo.min_order_value)
           throwError(AUTH_ERRORS.INVALID_MIN_ORDER_VALUE);
@@ -202,11 +207,47 @@ const orderService = {
     });
   },
 
-  getHistory: async (user) => {
+  getMyHistory: async (user) => {
     const { id, canteen_id } = user;
     return await prisma.order.findMany({
       where: { user_id: id, canteen_id },
     });
+  },
+  getHistoryOrder: async (user) => {
+    const { canteen_id, role } = user;
+    let whereCondition = {};
+    if (role !== "SUPER_ADMIN") {
+      whereCondition = { canteen_id: canteen_id };
+    }
+    const orderList = await prisma.order.findMany({
+      where: whereCondition,
+      include: {
+        canteen: {
+          select: {
+            name: true,
+          },
+        },
+        user_order_staff_idTouser: {
+          select: {
+            name: true,
+          },
+        },
+        user_order_user_idTouser: {
+          select: {
+            name: true,
+          },
+        },
+      },
+    });
+    return orderList.map((order) => ({
+      ...order,
+      canteen_name: order.canteen?.name || "N/A",
+      staff_name: order.user_order_staff_idTouser?.name || "N/A",
+      customer_name: order.user_order_user_idTouser?.name || "Khách vãng lai",
+      canteen: undefined,
+      user_order_staff_idTouser: undefined,
+      user_order_user_idTouser: undefined,
+    }));
   },
 
   getDetail: async (user, orderId) => {
@@ -232,47 +273,62 @@ const orderService = {
     });
     return data;
   },
-  getAll: async (user) => {
+  getAll: async (user, query) => {
     const { canteen_id } = user;
+    const { status, page = 1, limit = 8 } = query;
 
+    const skip = (Number(page) - 1) * Number(limit);
+    const take = Number(limit);
+    /*
+    take = Number(limit): Lấy bao nhiêu món? (Ở đây là lấy 8 món).
+    skip = (Number(page) - 1) * Number(limit): Bỏ qua bao nhiêu món phía trước?
+    */
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-
     const endOfDay = new Date();
     endOfDay.setHours(23, 59, 59, 999);
 
-    const orderList = await prisma.order.findMany({
-      where: {
-        canteen_id,
-        status: { in: type },
-        created_at: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
+    const commonWhere = {
+      canteen_id,
+      created_at: {
+        gte: startOfDay,
+        lte: endOfDay,
       },
-      include: {
-        order_item: {
-          include: {
-            product: {
-              select: {
-                product_name: true,
-              },
-            },
+      ...(status && status !== "ALL" ? { status } : {}),
+    };
+
+    const [orderList, totalOrders, groupStats] = await Promise.all([
+      prisma.order.findMany({
+        where: commonWhere,
+        skip,
+        take,
+        include: {
+          user_order_user_idTouser: true,
+          order_item: {
+            include: { product: { select: { product_name: true } } },
           },
         },
-      },
-      orderBy: {
-        created_at: "desc",
-      },
-    });
+        orderBy: { created_at: "desc" },
+      }),
 
-    const groupStats = await prisma.order.groupBy({
-      by: ["status"],
-      where: { canteen_id },
-      _count: {
-        status: true,
-      },
-    });
+      prisma.order.count({
+        where: commonWhere,
+      }),
+
+      prisma.order.groupBy({
+        by: ["status"],
+        where: {
+          canteen_id,
+          created_at: { gte: startOfDay, lte: endOfDay },
+        },
+        _count: { status: true },
+      }),
+    ]);
+    /*
+    by: ["status"]: Nói với Prisma rằng "Hãy gom những đơn hàng có cùng trạng thái vào một nhóm". (Nhóm Chờ, Nhóm Đang nấu, Nhóm Đã xong...).
+    _count: { status: true }: Sau khi gom nhóm xong, hãy đếm xem mỗi nhóm có bao nhiêu tờ.
+    */
+
     const stats = allTypes.reduce((acc, type) => {
       const found = groupStats.find((g) => g.status === type);
       acc[type] = found ? found._count.status : 0;
@@ -281,8 +337,10 @@ const orderService = {
 
     const data = orderList.map((order) => ({
       id: order.id,
-      total_price: Number(order.total_price),
+      final_price: Number(order.final_price),
+      discount: Number(order.discount),
       status: order.status,
+      customer_name: order.user_order_user_idTouser?.name || "Khách lạ",
       payment_method: order.payment_method,
       created_at: order.created_at,
       items: order.order_item.map((item) => ({
@@ -292,14 +350,21 @@ const orderService = {
       })),
     }));
 
-    return { orderList: data, statistics: stats };
+    return {
+      orderList: data,
+      statistics: stats,
+      pagination: {
+        totalOrders,
+        totalPages: Math.ceil(totalOrders / limit),
+        currentPage: Number(page),
+      },
+    };
   },
   updateOrder: async (user, orderId, { status }) => {
     const { canteen_id, id } = user;
     const orderCurrent = await prisma.order.findFirst({
       where: { id: orderId, canteen_id: canteen_id },
     });
-    console.log(orderCurrent);
     if (!orderCurrent) throwError(AUTH_ERRORS.INVALID_ORDER);
 
     const allowedNextStatuses = STATUS_ORDER[orderCurrent.status];
@@ -316,22 +381,13 @@ const orderService = {
     });
     return data;
   },
-  report: async (user, { start_date, end_date }) => {
+  report: async (user) => {
     const { canteen_id } = user;
-
-    const start = start_date
-      ? new Date(start_date)
-      : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const end = end_date ? new Date(end_date) : new Date();
 
     const orders = await prisma.order.findMany({
       where: {
         canteen_id,
         status: "COMPLETED",
-        created_at: {
-          gte: start,
-          lte: end,
-        },
       },
     });
 
@@ -344,7 +400,6 @@ const orderService = {
     return {
       total_revenue: totalRevenue,
       total_orders: totalOrders,
-      period: { start, end },
     };
   },
 };

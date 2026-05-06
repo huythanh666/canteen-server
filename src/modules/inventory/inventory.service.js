@@ -38,14 +38,18 @@ const inventoryService = {
     return data;
   },
   getAllTransaction: async (user) => {
-    const { canteen_id } = user;
+    const { canteen_id, role } = user;
+    let whereCondition = {};
+    if (role !== "SUPER_ADMIN") {
+      whereCondition = {
+        inventory: {
+          canteen_id,
+        },
+      };
+    }
     const listInventoryTransaction =
       await prisma.inventory_transaction.findMany({
-        where: {
-          inventory: {
-            canteen_id,
-          },
-        },
+        where: whereCondition,
         include: {
           inventory: {
             select: { inventory_name: true, unit: true, canteen: true },
@@ -196,6 +200,29 @@ const inventoryService = {
     });
 
     return report;
+  },
+  report: async (user) => {
+    const { canteen_id, role } = user;
+    let whereCondition = {};
+    if (role !== "SUPER_ADMIN") {
+      whereCondition = { canteen_id };
+    }
+    const inventoryList = await prisma.inventory.findMany({
+      where: whereCondition,
+    });
+    const stats = inventoryList.reduce(
+      (acc, item) => {
+        const quantity = Number(item.quantity) || 0;
+        const costPrice = Number(item.cost_price) || 0;
+
+        acc.total_quantity += quantity;
+        acc.total_value += quantity * costPrice;
+
+        return acc;
+      },
+      { total_quantity: 0, total_value: 0 },
+    );
+    return stats;
   },
 };
 export default inventoryService;

@@ -25,6 +25,10 @@ inventoryRoute.get(
   inventoryController.getDetailInventory,
 );
 
-inventoryRoute.get("/report", inventoryController.getDailyReport);
+inventoryRoute.get(
+  "/reportInventoryTransaction",
+  inventoryController.getDailyReport,
+);
+inventoryRoute.get("/report", inventoryController.reportInventory);
 
 export default inventoryRoute;

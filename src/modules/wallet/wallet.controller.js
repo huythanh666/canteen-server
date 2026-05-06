@@ -4,8 +4,12 @@ import walletService from "./wallet.service.js";
 
 const walletController = {
   getDetailWallet: asyncHandler(async (req, res) => {
-    const data = await walletService.getDetail(req.user, req.params.id);
+    const data = await walletService.getDetail(req.user);
     return sendSuccess(res, "Lấy thông tin ví thành công", data, 200);
+  }),
+  getWalletReport: asyncHandler(async (req, res) => {
+    const data = await walletService.report(req.user);
+    return sendSuccess(res, "Lấy báo cáo thành công", data, 200);
   }),
   depositWallet: asyncHandler(async (req, res) => {
     const data = await walletService.deposit(req.user, req.body);

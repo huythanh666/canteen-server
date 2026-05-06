@@ -7,7 +7,7 @@ import exclude from "../../utils/exclude.util.js";
 import { AUTH_ERRORS } from "../../constant/errorMessage.contstant.js";
 import { SIGNUP_PERMISSIONS } from "../../constant/auth.constant.js";
 
-const createAuthResponse = (user) => {
+const createAuthResponse = (user, action) => {
   const userWithoutPassword = exclude(user, ["password"]);
   const payloadToken = {
     id: user.id,
@@ -16,8 +16,11 @@ const createAuthResponse = (user) => {
     campus_id: user.campus_id,
     canteen_id: user.canteen_id,
   };
-  const { accessToken, refreshToken } = generateTokenJWT(payloadToken);
-  return { user: userWithoutPassword, accessToken, refreshToken };
+  if (action === "signin") {
+    const { accessToken, refreshToken } = generateTokenJWT(payloadToken);
+    return { user: userWithoutPassword, accessToken, refreshToken };
+  }
+  return { user: userWithoutPassword };
 };
 
 const authService = {
@@ -32,7 +35,6 @@ const authService = {
       role,
       email_parents,
     } = payload;
-
     const isAllowed = SIGNUP_PERMISSIONS[currentUser.role];
     if (!isAllowed.includes(role)) throwError(AUTH_ERRORS.INVALID_ROLE);
     if (currentUser.role !== "SUPER_ADMIN") {
@@ -64,7 +66,7 @@ const authService = {
       return createNewUser;
     });
 
-    return createAuthResponse(newUser);
+    return createAuthResponse(newUser, "signup");
   },
 
   signin: async (payload) => {
@@ -79,7 +81,26 @@ const authService = {
     if (!isPassword) {
       throwError(AUTH_ERRORS.INVALID_CREDENTIALS);
     }
-    return createAuthResponse(userData);
+    return createAuthResponse(userData, "signin");
+  },
+  getMe: async (userId) => {
+    let user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        canteen: true,
+      },
+    });
+    user = exclude(user, "password");
+    if (!user) throwError(AUTH_ERRORS.USER_NOT_FOUND);
+    if (user.status === "INACTIVE") throwError(AUTH_ERRORS.ACCOUNT_LOCKED);
+    const { canteen, ...e } = user;
+    const data = {
+      ...e,
+      canteen_name: canteen.name,
+      canteen_address: canteen.address,
+    };
+
+    return data;
   },
 };
 

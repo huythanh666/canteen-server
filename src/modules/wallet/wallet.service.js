@@ -7,16 +7,15 @@ import prisma from "../../prisma/client.js";
 import { throwError } from "../../utils/response.util.js";
 
 const walletService = {
-  getDetail: async (user, idWallet) => {
+  getDetail: async (user) => {
     const { canteen_id, id } = user;
-    const detail = await prisma.wallet.findUnique({
-      where: { id: idWallet, user: { canteen_id, id } },
+    const detail = await prisma.wallet.findFirst({
+      where: { user: { canteen_id, id } },
       include: { wallet_transaction: true },
     });
     if (!detail) throwError(AUTH_ERRORS.USER_NOT_FOUND);
     return detail;
   },
-  // mới làm nạp tiền thôi
   deposit: async (user, data) => {
     const { canteen_id, role, id } = user;
     const { wallet_id, amount, type, description } = data;
@@ -79,6 +78,7 @@ const walletService = {
           },
         },
       },
+      orderBy: { created_at: "desc" },
     });
 
     const list = data.map(({ wallet, ...e }) => {
@@ -118,6 +118,31 @@ const walletService = {
       },
     });
     return { listWallet, totalSummary };
+  },
+  report: async (user) => {
+    const { canteen_id, role } = user;
+    let whereCondition = {};
+    if (role !== "SUPER_ADMIN") {
+      whereCondition = { canteen_id };
+    }
+
+    const walletList = await prisma.wallet.findMany({
+      where: whereCondition,
+    });
+
+    const stats = walletList.reduce(
+      (acc, item) => {
+        const balance = Number(item.balance) || 0;
+        const totalSpending = Number(item.total_spending) || 0;
+        acc.total_balance += balance;
+        acc.total_spending += totalSpending;
+        acc.total_wallet += 1;
+        return acc;
+      },
+      { total_balance: 0, total_spending: 0, total_wallet: 0 },
+    );
+
+    return stats;
   },
   refund: async (user, idWallet) => {},
 };
