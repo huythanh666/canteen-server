@@ -4,8 +4,7 @@ import {
   checkRolePermission,
   requireAuth,
 } from "../../middlewares/auth.middleware.js";
-import { productSchema } from "./product.schema.js";
-import { validate } from "../../middlewares/zod.middleware.js";
+import uploadImage from "../../middlewares/cloudinary.middleware.js";
 
 const productRoute = express.Router();
 
@@ -19,15 +18,11 @@ productRoute.get(
 
 productRoute.use(checkRolePermission);
 
-productRoute.put(
-  "/updateProduct/:id",
-  validate(productSchema),
-  productController.updateProduct,
-);
+productRoute.put("/updateProduct/:id", productController.updateProduct);
 productRoute.delete("/deleteProduct/:id", productController.deleteProduct);
 productRoute.post(
   "/createProduct",
-  validate(productSchema),
+  uploadImage("image"),
   productController.createProduct,
 );
 productRoute.post(

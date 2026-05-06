@@ -1,2 +1,2 @@
 export const type = ["PENDING", "PROCESSING"];
-export const allTypes = ["PENDING", "PROCESSING", "COMPLETED", "CANCEL"];
+export const allTypes = ["PENDING", "PROCESSING", "COMPLETED", "CANCELLED"];

@@ -6,7 +6,7 @@ import { createCanteenSchema } from "./canteen.schema.js";
 const canteenRoute = express.Router();
 
 canteenRoute.post(
-  "/create",
+  "/createCanteen",
   validate(createCanteenSchema),
   canteenController.createCanteen,
 );

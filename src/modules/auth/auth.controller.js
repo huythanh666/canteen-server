@@ -57,5 +57,9 @@ const authControler = {
       200,
     );
   }),
+  getPingMe: asyncHandler(async (req, res) => {
+    const data = await authService.getMe(req.user.id);
+    return sendSuccess(res, "Thông tin người dùng", data, 200);
+  }),
 };
 export default authControler;

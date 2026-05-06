@@ -80,4 +80,8 @@ export const AUTH_ERRORS = {
     message: "Bạn đã review món ăn này rồi",
     statusbar: 400,
   },
+  INVALID_RECIPE: {
+    message: "Bạn chưa thêm công thức cho món này",
+    statusbar: 400,
+  },
 };

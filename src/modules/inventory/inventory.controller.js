@@ -30,6 +30,10 @@ const inventoryController = {
     const data = await inventoryService.getDailyReport(req.user, req.query);
     return sendSuccess(res, "Lấy báo cáo thành công", data, 200);
   }),
+  reportInventory: asyncHandler(async (req, res) => {
+    const data = await inventoryService.report(req.user);
+    return sendSuccess(res, "Lấy báo cáo thành công", data, 200);
+  }),
 };
 
 export default inventoryController;

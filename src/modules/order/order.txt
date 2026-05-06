@@ -377,3 +377,47 @@ Nếu bạn muốn, mình có thể:
 👉 Hoặc simulate **1000 concurrent orders test case**
 
 Chỉ cần nói 😄
+
+    id: 'efe9ec51-3b69-4663-9f76-a45185aef9a2',
+    user_id: 'c2b2d99c-8aea-4c00-8a70-accbde8a3a35',
+    canteen_id: 'bf48217b-1410-47f7-94d5-1fdde0c8c0db',
+    user_sub_id: null,
+    staff_id: 'c2b2d99c-8aea-4c00-8a70-accbde8a3a35',
+    voucher_id: null,
+    payment_method: 'WALLET',
+    sub_total: 285000,
+    discount: 0,
+    status: 'COMPLETED',
+    created_at: 2026-04-25T08:50:39.000Z,
+    final_price: 285000,
+    description: null,
+    canteen: { name: 'Canteen PTIT HCM CS1' },
+    user_order_staff_idTouser: {
+      id: 'c2b2d99c-8aea-4c00-8a70-accbde8a3a35',
+      campus_id: '0d06e3d4-1efb-4e7f-9e96-fc3993c13627',
+      canteen_id: 'bf48217b-1410-47f7-94d5-1fdde0c8c0db',
+      name: 'Huy Thành',
+      email: 'huythanh022302@gmail.com',
+      password: '$2b$12$Hk.MDoIXmzqmY0qZAHYlMuHaJq9tsZ5x7bbiKBlMVPdkBPD7GMaaK',
+      role: 'SUPER_ADMIN',
+      birthday: 2002-02-23T00:00:00.000Z,
+      status: 'ACTIVE',
+      email_parents: 'dev.nguyenhuythanh@gmail.com',
+      created_at: 2026-04-20T08:03:39.000Z,
+      updated_at: 2026-04-20T08:03:39.000Z
+    },
+    user_order_user_idTouser: {
+      id: 'c2b2d99c-8aea-4c00-8a70-accbde8a3a35',
+      campus_id: '0d06e3d4-1efb-4e7f-9e96-fc3993c13627',
+      canteen_id: 'bf48217b-1410-47f7-94d5-1fdde0c8c0db',
+      name: 'Huy Thành',
+      email: 'huythanh022302@gmail.com',
+      password: '$2b$12$Hk.MDoIXmzqmY0qZAHYlMuHaJq9tsZ5x7bbiKBlMVPdkBPD7GMaaK',
+      role: 'SUPER_ADMIN',
+      birthday: 2002-02-23T00:00:00.000Z,
+      status: 'ACTIVE',
+      email_parents: 'dev.nguyenhuythanh@gmail.com',
+      created_at: 2026-04-20T08:03:39.000Z,
+      updated_at: 2026-04-20T08:03:39.000Z
+    }
+  }
