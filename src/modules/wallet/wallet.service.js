@@ -11,7 +11,7 @@ const walletService = {
     const { canteen_id, id } = user;
     const detail = await prisma.wallet.findFirst({
       where: { user: { canteen_id, id } },
-      include: { wallet_transaction: true },
+      include: { wallet_transaction: { orderBy: { created_at: "desc" } } },
     });
     if (!detail) throwError(AUTH_ERRORS.USER_NOT_FOUND);
     return detail;

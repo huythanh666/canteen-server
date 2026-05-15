@@ -211,6 +211,7 @@ const orderService = {
     const { id, canteen_id } = user;
     return await prisma.order.findMany({
       where: { user_id: id, canteen_id },
+      orderBy: { created_at: "desc" },
     });
   },
   getHistoryOrder: async (user) => {
@@ -238,6 +239,7 @@ const orderService = {
           },
         },
       },
+      orderBy: { created_at: "desc" },
     });
     return orderList.map((order) => ({
       ...order,
