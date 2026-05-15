@@ -6,7 +6,6 @@ import {
   optionalAuth,
   requireAuth,
 } from "../../middlewares/auth.middleware.js";
-import { verifyAccessToken } from "../../utils/jwt.util.js";
 
 const authRoute = express.Router();
 

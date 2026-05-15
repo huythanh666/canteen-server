@@ -21,7 +21,7 @@ const userController = {
       req.user,
       req.body,
     );
-    return sendSuccess(res, "Cập nhập nhân viên thành công", data, 200);
+    return sendSuccess(res, "Chưa làm tính năng này", data, 200);
   }),
 };
 

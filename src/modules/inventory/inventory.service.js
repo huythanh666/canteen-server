@@ -64,9 +64,9 @@ const inventoryService = {
     const data = listInventoryTransaction.map(({ inventory, staff, ...e }) => {
       return {
         ...e,
-        inventory_name: inventory.inventory_name,
-        canteen_name: inventory.canteen.name,
-        staff_name: staff.name,
+        inventory_name: inventory?.inventory_name,
+        canteen_name: inventory?.canteen?.name,
+        staff_name: staff?.name,
       };
     });
     return data;
